@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 交易日記 | Risk Management Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen antialiased">
+
+    <!-- 頂部導航欄 -->
+    <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-50 px-6 py-4">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <span class="text-2xl">⚡</span>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">PROCESS-ORIENTED DIARY</h1>
+                    <p class="text-xs text-slate-400 font-medium">風險管理 · 過程導向 · 防止追數</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-4 bg-slate-900 border border-slate-800 p-1.5 rounded-xl">
+                <div class="px-3 py-1.5">
+                    <span class="text-xs text-slate-400 block uppercase font-semibold tracking-wider">本金基準</span>
+                    <div class="flex items-center gap-2">
+                        <span id="base-capital" class="text-sm font-bold text-slate-200">$1,000</span>
+                        <span class="text-xs text-slate-500">USD</span>
+                    </div>
+                </div>
+                <button onclick="updateCapital()" class="bg-slate-800 hover:bg-slate-700 text-xs font-semibold px-4 py-2.5 rounded-lg transition-all text-slate-300 active:scale-95">
+                    更新本金
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- 左側：交易操作、當日總結、歷史記錄（佔 2 欄） -->
+        <div class="lg:col-span-2 space-y-8">
+            
+            <!-- 數據儀表板 (KPI Cards) -->
+            <section class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div class="bg-slate-900/40 border border-slate-800 p-4 rounded-2xl">
+                    <span class="text-xs font-medium text-slate-400 block mb-1">總盈虧</span>
+                    <span id="kpi-pnl" class="text-2xl font-bold text-emerald-400">+$0.00</span>
+                </div>
+                <div class="bg-slate-900/40 border border-slate-800 p-4 rounded-2xl">
+                    <span class="text-xs font-medium text-slate-400 block mb-1">守規則率</span>
+                    <span id="kpi-rule-rate" class="text-2xl font-bold text-slate-300">—</span>
+                </div>
+                <div class="bg-slate-900/40 border border-slate-800 p-4 rounded-2xl">
+                    <span class="text-xs font-medium text-slate-400 block mb-1">衝動次數</span>
+                    <span id="kpi-impulse-count" class="text-2xl font-bold text-rose-400">0</span>
+                </div>
+                <div class="bg-slate-900/40 border border-slate-800 p-4 rounded-2xl">
+                    <span class="text-xs font-medium text-slate-400 block mb-1">平均過程分</span>
+                    <span id="kpi-avg-score" class="text-2xl font-bold text-cyan-400">—</span>
+                </div>
+            </section>
+
+            <!-- 📈 新增：本金升跌曲線圖區塊 -->
+            <section class="bg-slate-900/60 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+                <h2 class="text-lg font-bold flex items-center gap-2 text-slate-100">
+                    <span>📈</span> 本金升跌曲線 (Equity Curve)
+                </h2>
+                <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800/60 flex items-center justify-center min-h-[220px] w-full">
+                    <div id="chart-wrapper" class="w-full h-48 flex items-center justify-center">
+                        <!-- 動態 SVG 會由 JS 塞入這裡 -->
+                        <span class="text-xs text-slate-500">📊 儲存首筆今日記錄後將即時自動繪製權益走勢曲線</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 📝 今日交易輸入區 -->
+            <section class="bg-slate-900/60 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-4">
+                    <h2 class="text-lg font-bold flex items-center gap-2 text-slate-100">
+                        <span>📝</span> 今日交易記錄
+                    </h2>
+                    <div class="flex gap-3 text-xs text-slate-400">
+                        <span class="bg-slate-950 px-2.5 py-1 rounded-md border border-slate-800">每單限額: <strong id="limit-per-trade" class="text-rose-400">$20 (2%)</strong></span>
+                        <span class="bg-slate-950 px-2.5 py-1 rounded-md border border-slate-800">單日限額: <strong id="limit-per-day" class="text-rose-400">$50 (5%)</strong></span>
+                    </div>
+                </div>
+
+                <!-- 交易輸入表單 -->
+                <div class="space-y-5">
+                    <!-- 日期選擇器 -->
+                    <div class="space-y-2">
+                        <label class="text-xs font-semibold text-slate-400 tracking-wider uppercase">交易日期</label>
+                        <input type="date" id="trade-date" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500">
+                    </div>
+
+                    <!-- 品種選擇（下拉選單） -->
+                    <div class="space-y-2">
+                        <label class="text-xs font-semibold text-slate-400 tracking-wider uppercase">選擇交易品種</label>
+                        <select id="asset-select" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500">
+                            <optgroup label="🔥 外匯主流">
+                                <option value="EURUSD">EURUSD (歐元/美元)</option>
+                                <option value="GBPUSD">GBPUSD (英鎊/美元)</option>
+                                <option value="USDJPY">USDJPY (美元/日圓)</option>
+                                <option value="AUDUSD">AUDUSD (澳元/美元)</option>
+                                <option value="USDCAD">USDCAD (美元/加元)</option>
+                            </optgroup>
+                            <optgroup label="✨ 貴金屬與期油">
+                                <option value="XAUUSD">XAUUSD (黃金)</option>
+                                <option value="XAGUSD">XAGUSD (白銀)</option>
+                                <option value="USOIL">USOIL (美原油)</option>
+                            </optgroup>
+                            <optgroup label="📈 股票指數">
+                                <option value="NAS100">NAS100 (納斯達克)</option>
+                                <option value="US30">US30 (道瓊斯)</option>
+                                <option value="SPX500">SPX500 (標普500)</option>
+                                <option value="HK50">HK50 (恆生指數)</option>
+                            </optgroup>
+                            <optgroup label="⚡ 加密貨幣">
+                                <option value="BTCUSD">BTCUSD (比特幣)</option>
+                                <option value="ETHUSD">ETHUSD (乙太幣)</option>
+                            </optgroup>
+                        </select>
+                    </div>
+
+                    <!-- 方向與盈虧 -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="space-y-2">
+                            <label class="text-xs font-semibold text-slate-400 tracking-wider uppercase">交易方向</label>
+                            <div class="grid grid-cols-2 gap-2 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                                <button type="button" id="btn-buy" onclick="selectDirection('Buy')" class="py-2 text-xs font-bold rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">🟢 做多 (Buy)</button>
+                                <button type="button" id="btn-sell" onclick="selectDirection('Sell')" class="py-2 text-xs font-medium rounded-lg text-slate-400 hover:text-slate-200">🔴 做空 (Sell)</button>
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-xs font-semibold text-slate-400 tracking-wider uppercase">單筆盈虧 (USD)</label>
+                            <div class="relative">
+                                <input type="number" id="trade-pnl" placeholder="例如 -20 或 40" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500">
+                                <span class="absolute right-3 top-2.5 text-xs text-slate-500">USD</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 守住風險問卷 -->
+                    <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                        <div>
+                            <h4 class="text-sm font-semibold text-slate-200">有冇守住每單風險限制？</h4>
+                            <p class="text-xs text-slate-500">嚴格執行預設止損才是合格的交易</p>
+                        </div>
+                        <div class="flex gap-2 w-full sm:w-auto">
+                            <button type="button" id="btn-rule-yes" onclick="setTradeRule(true)" class="flex-1 sm:flex-none px-4 py-1.5 text-xs font-bold rounded-lg bg-emerald-500 text-slate-950 shadow-md">有守住</button>
+                            <button type="button" id="btn-rule-no" onclick="setTradeRule(false)" class="flex-1 sm:flex-none px-4 py-1.5 text-xs font-medium rounded-lg bg-slate-900 border border-slate-800 text-rose-400">有超標</button>
+                        </div>
+                    </div>
+
+                    <!-- 備註 -->
+                    <div class="space-y-2">
+                        <label class="text-xs font-semibold text-slate-400 tracking-wider uppercase">交易備註 (選填)</label>
+                        <input type="text" id="trade-note" placeholder="輸入開倉心理、技術形態或檢討..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500">
+                    </div>
+
+                    <button type="button" onclick="addTradeTmp()" class="w-full bg-slate-100 hover:bg-white text-slate-950 font-bold py-3 rounded-xl text-sm transition-all active:scale-[0.99]">
+                        ＋ 加入呢單交易
+                    </button>
+                </div>
+
+                <div class="border-t border-slate-800/80 pt-4 space-y-3">
+                    <div class="flex justify-between items-center text-xs font-semibold text-slate-400 tracking-wider">
+                        <span>當前日期暫存列表 (未存檔)</span>
+                        <span id="tmp-total-pnl" class="text-slate-200 font-mono text-sm">$0.00</span>
+                    </div>
+                    <div id="tmp-list-container" class="space-y-2">
+                        <div class="text-center py-6 bg-slate-950/40 rounded-xl border border-dashed border-slate-800 text-slate-500 text-xs">
+                            📭 尚未加入任何交易
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border-t border-slate-800/80 pt-4 space-y-4">
+                    <h3 class="text-sm font-bold text-slate-300">🧠 當日心態總結</h3>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2">
+                            <span class="text-xs font-medium text-slate-400 block">今日有冇出現「想加大注碼追數」嘅衝動？</span>
+                            <div class="flex gap-2">
+                                <button type="button" id="btn-impulse-yes" onclick="setImpulse(true)" class="flex-1 py-1 text-xs font-medium rounded bg-slate-900 border border-slate-800 text-slate-400">有</button>
+                                <button type="button" id="btn-impulse-no" onclick="setImpulse(false)" class="flex-1 py-1 text-xs font-bold rounded bg-slate-800 border border-slate-700 text-slate-200">冇</button>
+                            </div>
+                        </div>
+                        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2">
+                            <span class="text-xs font-medium text-slate-400 block">如果有衝動，有冇執行 5 步流程？</span>
+                            <div class="flex gap-2">
+                                <button type="button" id="btn-flow-yes" onclick="setFlow(true)" class="flex-1 py-1 text-xs rounded bg-slate-900 border border-slate-800 text-slate-600" disabled>有執行</button>
+                                <button type="button" id="btn-flow-no" onclick="setFlow(false)" class="flex-1 py-1 text-xs rounded bg-slate-900 border border-slate-800 text-slate-600" disabled>冇執行</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+                        <div class="sm:col-span-1 space-y-1">
+                            <label class="text-xs font-semibold text-slate-400 block">過程得分 (1–10)</label>
+                            <p class="text-[11px] text-slate-500 leading-tight">只評有冇守規則，不評賺蝕</p>
+                        </div>
+                        <div class="sm:col-span-2">
+                            <input type="number" id="day-score" min="1" max="10" placeholder="評分 (1-10)" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500">
+                        </div>
+                    </div>
+
+                    <button type="button" onclick="saveDayRecord()" class="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-bold py-3 rounded-xl text-sm transition-all shadow-lg active:scale-[0.99]">
+                        💾 儲存今日記錄（正式存檔至歷史記錄）
+                    </button>
+                </div>
+            </section>
+
+            <section class="bg-slate-900/60 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                    <h2 class="text-lg font-bold flex items-center gap-2 text-slate-100">
+                        <span>📋</span> 歷史歸檔日誌
+                    </h2>
+                    <div class="flex gap-2">
+                        <button onclick="exportData()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg">備份 (JSON)</button>
+                        <button onclick="clearAllData()" class="text-xs bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 px-3 py-1.5 rounded-lg">清除所有</button>
+                    </div>
+                </div>
+                <div id="history-container" class="space-y-3 max-h-96 overflow-y-auto">
+                    <div class="text-center py-10 bg-slate-950/40 rounded-xl border border-dashed border-slate-800 text-slate-500 text-sm">
+                        📭 尚未有任何歷史歸檔記錄
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- 右側欄：規則與計算器整合一體版 -->
+        <div class="space-y-8">
+            <section class="bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-5">
+                <h2 class="text-md font-bold text-slate-200 flex items-center gap-2 border-b border-slate-800 pb-3">
+                    <span>📌</span> 核心風控鐵律
+                </h2>
+                
+                <div class="space-y-3.5 text-xs text-slate-300">
+                    <div class="flex items-start gap-2.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-rose-500 mt-1.5 shrink-0"></span>
+                        <p><strong class="text-slate-100">每單最大風險：</strong> 嚴格限制本金 2% (<span id="rule-trade-val">$20</span> USD)。</p>
+                    </div>
+                    <div class="flex items-start gap-2.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-rose-500 mt-1.5 shrink-0"></span>
+                        <p><strong class="text-slate-100">單日最大虧損：</strong> 本金 5% (<span id="rule-day-val">$50</span> USD)。觸及立即關盤，當日嚴禁再開新倉。</p>
+                    </div>
+                    <div class="flex items-start gap-2.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0"></span>
+                        <p><strong class="text-slate-100">連續虧損熔斷：</strong> 當日連續虧損 3 單必須即時停手。</p>
+                    </div>
+                </div>
+
+                <div class="bg-rose-500/5 border border-rose-500/20 rounded-2xl p-4 space-y-3">
+                    <h3 class="text-xs font-bold text-rose-400 flex items-center gap-1.5">
+                        <span>⚠️</span> 想加大注碼追數時的 5 步冷靜流程
+                    </h3>
+                    <p class="text-[11px] text-slate-400 italic">當出現「想快啲賺返」或「加注搏一轉」時，立刻執行：</p>
+                    <ol class="text-[11px] text-slate-300 space-y-1.5 list-decimal list-inside">
+                        <li>即刻平掉所有持倉</li>
+                        <li>關閉交易軟件至少 30 分鐘</li>
+                        <li>手動抄寫風控防線句子 3 次</li>
+                        <li>強制離開座位 30 分鐘（行開/沖涼）</li>
+                        <li>平靜後再填寫此交易日誌</li>
+                    </ol>
+                </div>
+            </section>
+
+            <section class="bg-slate-900/60 border border-slate-800 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+                <div id="calc-lock-overlay" class="absolute inset-0 bg-slate-950/90 backdrop-blur-sm z-20 flex flex-col justify-center items-center p-6 text-center hidden">
+                    <div class="w-12 h-12 rounded-full bg-rose-500/10 text-rose-400 flex items-center justify-center text-xl mb-3 border border-rose-500/20 animate-pulse">
+                        🚫
+                    </div>
+                    <h3 class="text-sm font-bold text-rose-400 tracking-wide uppercase">計算器已鎖定 24 小時</h3>
+                    <p class="text-xs text-slate-400 mt-2 max-w-[220px] leading-relaxed">今日虧損已超過上限 5%，強迫停止開倉，請立刻離開市場休息。</p>
+                </div>
+
+                <h2 class="text-md font-bold border-b border-slate-800 pb-3 mb-4 flex items-center gap-2">
+                    <span>🧮</span> 倉位計算器
+                </h2>
+                <div class="space-y-4 text-xs">
+                    <!-- 倉位資產類型選擇 -->
+                    <div class="space-y-1.5">
+                        <span class="text-slate-400 block font-medium">計算資產類型</span>
+                        <select id="calc-asset-type" onchange="calculateLot()" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-cyan-500">
+                            <option value="forex">外匯標準手 (1手 = 100k 單位 / 點值計法)</option>
+                            <option value="gold">黃金 XAUUSD (1手 = 100盎司 / $1價差 = $100)</option>
+                            <option value="oil">原油 USOIL (1手 = 1000桶 / $1價差 = $1000)</option>
+                            <option value="crypto_index">加密貨幣 / 股票指數 (絕對價格點對點計法)</option>
+                        </select>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+                            <span class="text-slate-500 block">帳戶本金</span>
+                            <span id="calc-base" class="font-bold text-slate-300">$1,000 USD</span>
+                        </div>
+                        <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+                            <span class="text-slate-500 block">單筆風險金額</span>
+                            <span id="calc-risk" class="font-bold text-rose-400">$20 USD (2%)</span>
+                        </div>
+                    </div>
+                    <div class="space-y-3">
+                        <div>
+                            <span class="text-slate-400 block mb-1">入場價 (Entry Price)</span>
+                            <input type="number" step="any" id="calc-entry" oninput="calculateLot()" placeholder="例如 1.0850 或 2650" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-cyan-500">
+                        </div>
+                        <div>
+                            <span class="text-slate-400 block mb-1">止損價 (Stop Loss Price)</span>
+                            <input type="number" step="any" id="calc-sl" oninput="calculateLot()" placeholder="例如 1.0830 或 2640" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-cyan-500">
+                        </div>
+                        <div class="bg-cyan-500/5 border border-cyan-500/20 p-3 rounded-xl mt-2 space-y-1">
+                            <span class="text-slate-400 block font-medium">精準 Sizing 輸出結果：</span>
+                            <div id="calc-result" class="text-sm font-mono font-bold text-cyan-400 space-y-0.5">
+                                <div>請輸入價格計算</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <footer class="bg-slate-900/30 border border-slate-800 rounded-2xl p-4 text-center">
+                <p class="text-xs text-slate-400">💡 使用 iPhone Safari 開啟，點擊 <strong class="text-slate-200">「□↑」</strong> 並選擇 <strong class="text-slate-200">「加到主畫面」</strong>，即可享受全螢幕 App 級別體驗。</p>
+            </footer>
+
+        </div>
+    </main>
+
+    <script>
+        // 初始化本機資料庫數據
+        let db = JSON.parse(localStorage.getItem('trading_diary_db')) || {
+            capital: 1000,
+            history: []
+        };
+
+        // 當日暫存單據變量
+        let tmpTrades = [];
+        let selectedDirection = 'Buy';
+        let tradeRuleStatus = true;
+        let impulseStatus = false;
+        let flowStatus = false;
+
+        // 頁面加載完成時初始化渲染
+        window.onload = function() {
+            // 預設填寫今日日期 (YYYY-MM-DD)
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            document.getElementById('trade-date').value = yyyy + '-' + mm + '-' + dd;
+            
+            renderAll();
+        };
+
+        function renderAll() {
+            localStorage.setItem('trading_diary_db', JSON.stringify(db));
+            
+            // 更新本金與風控限額文字
+            const tLimit = (db.capital * 0.02).toFixed(2);
+            const dLimit = (db.capital * 0.05).toFixed(2);
+            
+            document.getElementById('base-capital').innerText = '$' + db.capital.toLocaleString();
+            document.getElementById('limit-per-trade').innerText = '$' + tLimit + ' (2%)';
+            document.getElementById('limit-per-day').innerText = '$' + dLimit + ' (5%)';
+            document.getElementById('rule-trade-val').innerText = '$' + tLimit;
+            document.getElementById('rule-day-val').innerText = '$' + dLimit;
+            
+            document.getElementById('calc-base').innerText = '$' + db.capital.toLocaleString() + ' USD';
+            document.getElementById('calc-risk').innerText = '$' + tLimit + ' USD (2%)';
+
+            renderTmpList();
+            renderHistory();
+            updateKPIs();
+            checkMeltdown();
+            renderEquityChart();
+        }
+
+        function updateCapital() {
+            const newCap = prompt("請輸入新的本金基準金額 (USD):", db.capital);
+            if (newCap && !isNaN(newCap) && Number(newCap) > 0) {
+                db.capital = Number(newCap);
+                renderAll();
+            }
+        }
+
+        function selectDirection(dir) {
+            selectedDirection = dir;
+            const buyBtn = document.getElementById('btn-buy');
+            const sellBtn = document.getElementById('btn-sell');
+            if (dir === 'Buy') {
+                buyBtn.className = "py-2 text-xs font-bold rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/30";
+                sellBtn.className = "py-2 text-xs font-medium rounded-lg text-slate-400 hover:text-slate-200";
+            } else {
+                sellBtn.className = "py-2 text-xs font-bold rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/30";
+                buyBtn.className = "py-2 text-xs font-medium rounded-lg text-slate-400 hover:text-slate-200";
+            }
+        }
+
+        function setTradeRule(status) {
+            tradeRuleStatus = status;
+            const yesBtn = document.getElementById('btn-rule-yes');
+            const noBtn = document.getElementById('btn-rule-no');
+            if(status) {
+                yesBtn.className = "px-4 py-1.5 text-xs font-bold rounded-lg bg-emerald-500 text-slate-950 shadow-md";
+                noBtn.className = "px-4 py-1.5 text-xs font-medium rounded-lg bg-slate-900 border border-slate-800 text-rose-400";
+            } else {
+                noBtn.className = "px-4 py-1.5 text-xs font-bold rounded-lg bg-rose-500 text-slate-950 shadow-md";
+                yesBtn.className = "px-4 py-1.5 text-xs font-medium rounded-lg bg-slate-900 border border-slate-800 text-emerald-400";
+            }
+        }
+
+        function setImpulse(status) {
+            impulseStatus = status;
+            const yesBtn = document.getElementById('btn-impulse-yes');
+            const noBtn = document.getElementById('btn-impulse-no');
+            const flowYes = document.getElementById('btn-flow-yes');
+            const flowNo = document.getElementById('btn-flow-no');
+
+            if(status) {
+                yesBtn.className = "flex-1 py-1 text-xs font-bold rounded bg-rose-500/20 border border-rose-500/40 text-rose-400";
+                noBtn.className = "flex-1 py-1 text-xs font-medium rounded bg-slate-900 border border-slate-800 text-slate-500";
+                flowYes.disabled = false; flowNo.disabled = false;
+                setFlow(false);
+            } else {
+                noBtn.className = "flex-1 py-1 text-xs font-bold rounded bg-slate-800 border border-slate-700 text-slate-200";
+                yesBtn.className = "flex-1 py-1 text-xs font-medium rounded bg-slate-900 border border-slate-800 text-slate-400";
+                flowYes.disabled = true; flowNo.disabled = true;
+                flowYes.className = "flex-1 py-1 text-xs rounded bg-slate-900 border border-slate-800 text-slate-600";
+                flowNo.className = "flex-1 py-1 text-xs rounded bg-slate-900 border border-slate-800 text-slate-600";
+                flowStatus = false;
+            }
+        }
+
+        function setFlow(status) {
+            flowStatus = status;
+            const yesBtn = document.getElementById('btn-flow-yes');
+            const noBtn = document.getElementById('btn-flow-no');
+            if(status) {
+                yesBtn.className = "flex-1 py-1 text-xs font-bold rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-400";
+                noBtn.className = "flex-1 py-1 text-xs font-medium rounded bg-slate-900 border border-slate-800 text-slate-500";
+            } else {
+                noBtn.className = "flex-1 py-1 text-xs font-bold rounded bg-rose-500/20 border border-rose-500/40 text-rose-400";
+                yesBtn.className = "flex-1 py-1 text-xs font-medium rounded bg-slate-900 border border-slate-800 text-slate-500";
+            }
+        }
+
+        function addTradeTmp() {
+            const pnlInput = document.getElementById('trade-pnl').value;
+            const assetSelect = document.getElementById('asset-select').value;
+            if(!pnlInput || isNaN(pnlInput)) {
+                alert("請輸入有效的單筆盈虧金額！");
+                return;
+            }
+            
+            const trade = {
+                id: Date.now(),
+                asset: assetSelect,
+                direction: selectedDirection,
+                pnl: Number(pnlInput),
+                obeyedRule: tradeRuleStatus,
+                note: document.getElementById('trade-note').value || '無備註'
+            };
+
+            tmpTrades.push(trade);
+            document.getElementById('trade-pnl').value = '';
+            document.getElementById('trade-note').value = '';
+            renderAll();
+        }
+
+        function removeTmpTrade(id) {
+            tmpTrades = tmpTrades.filter(t => t.id !== id);
+            renderAll();
+        }
+
+        function renderTmpList() {
+            const container = document.getElementById('tmp-list-container');
+            let totalTmpPnl = 0;
+
+            if(tmpTrades.length === 0) {
+                container.innerHTML = `<div class="text-center py-6 bg-slate-950/40 rounded-xl border border-dashed border-slate-800 text-slate-500 text-xs">📭 尚未加入任何交易</div>`;
+                document.getElementById('tmp-total-pnl').innerText = "$0.00";
+                document.getElementById('tmp-total-pnl').className = "text-slate-200 font-mono text-sm";
+                return;
+            }
+
+            let html = "";
+            tmpTrades.forEach(t => {
+                totalTmpPnl += t.pnl;
+                const pnlClass = t.pnl >= 0 ? "text-emerald-400" : "text-rose-400";
+                const sign = t.pnl >= 0 ? "+" : "";
+                html += `
+                    <div class="bg-slate-950 px-4 py-2.5 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
+                        <div class="space-y-0.5">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-slate-200">` + t.asset + `</span>
+                                <span class="` + (t.direction === 'Buy' ? 'text-emerald-500' : 'text-rose-500') + ` font-medium uppercase">[` + t.direction + `]</span>
+                                <span class="` + (t.obeyedRule ? 'text-emerald-500 bg-emerald-500/10' : 'text-rose-400 bg-rose-500/10') + ` px-1.5 py-0.2 rounded text-[10px]">
+                                    ` + (t.obeyedRule ? '守規' : '違規') + `
+                                </span>
+                            </div>
+                            <p class="text-slate-500 text-[11px] max-w-[280px] truncate">` + t.note + `</p>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="font-mono font-bold ` + pnlClass + `">` + sign + `$` + t.pnl.toFixed(2) + `</span>
+                            <button onclick="removeTmpTrade(` + t.id + `)" class="text-slate-500 hover:text-rose-400 text-sm">✕</button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+            document.getElementById('tmp-total-pnl').innerText = (totalTmpPnl >= 0 ? "+" : "") + `$` + totalTmpPnl.toFixed(2);
+            document.getElementById('tmp-total-pnl').className = `font-mono text-sm font-bold ` + (totalTmpPnl >= 0 ? 'text-emerald-400' : 'text-rose-400');
+        }
+
+        function saveDayRecord() {
+            if(tmpTrades.length === 0) {
+                alert("當前暫存列表仲係空嘅，請先填寫並「加入呢單交易」！");
+                return;
+            }
+            const scoreInput = document.getElementById('day-score').value;
+            if(!scoreInput || isNaN(scoreInput) || scoreInput < 1 || scoreInput > 10) {
+                alert("請填寫過程得分 (1-10分)！");
+                return;
+            }
+
+            const chosenDate = document.getElementById('trade-date').value || new Date().toLocaleDateString('zh-HK');
+
+            const dayRecord = {
+                id: Date.now(),
+                date: chosenDate,
+                trades: [...tmpTrades],
+                hasImpulse: impulseStatus,
+                executedFlow: flowStatus,
+                score: Number(scoreInput)
+            };
+
+            db.history.push(dayRecord);
+            
+            // 智能排序：按日期由新到舊排序
+            db.history.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            tmpTrades = []; 
+            document.getElementById('day-score').value = '';
+            setImpulse(false); 
+            
+            renderAll();
+            alert("🎉 記錄已成功正式寫入歷史日誌！");
+        }
+
+        function deleteDayRecord(id) {
+            if(confirm("確定要刪除呢一整天嘅歷史記錄嗎？")) {
+                db.history = db.history.filter(day => day.id !== id);
+                renderAll();
+            }
+        }
+
+        function renderHistory() {
+            const container = document.getElementById('history-container');
+            if(db.history.length === 0) {
+                container.innerHTML = `<div class="text-center py-10 bg-slate-950/40 rounded-xl border border-dashed border-slate-800 text-slate-500 text-sm">📭 尚未有任何歷史歸檔記錄</div>`;
+                return;
+            }
+
+            let html = "";
+            db.history.forEach(day => {
+                let dayPnl = 0;
+                let dayHtmlTrades = "";
+                
+                day.trades.forEach(t => {
+                    dayPnl += t.pnl;
+                    dayHtmlTrades += `
+                        <div class="flex justify-between items-center text-[11px] bg-slate-900/50 p-2 rounded border border-slate-800/40">
+                            <span class="text-slate-400"><strong class="text-slate-200">` + t.asset + `</strong> (` + t.direction + `) - ` + t.note + `</span>
+                            <span class="font-mono ` + (t.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400') + `">` + (t.pnl >= 0 ? '+' : '') + `$` + t.pnl.toFixed(2) + `</span>
+                        </div>
+                    `;
+                });
+
+                const pnlClass = dayPnl >= 0 ? 'text-emerald-400' : 'text-rose-400';
+                html += `
+                    <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
+                        <div class="flex justify-between items-center border-b border-slate-900 pb-2">
+                            <div>
+                                <span class="text-xs font-bold text-slate-300">📅 ` + day.date + `</span>
+                                <span class="ml-2 text-[10px] px-1.5 py-0.5 rounded ` + (day.hasImpulse ? 'bg-rose-500/10 text-rose-400' : 'bg-slate-900 text-slate-500') + `">
+                                    ` + (day.hasImpulse ? '曾有追數衝動' : '心態平靜') + `
+                                </span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <span class="text-xs text-slate-500">過程分: <strong class="text-cyan-400">` + day.score + `</strong></span>
+                                <span class="font-mono font-bold text-xs ` + pnlClass + `">` + (dayPnl >= 0 ? '+' : '') + `$` + dayPnl.toFixed(2) + `</span>
+                                <button onclick="deleteDayRecord(` + day.id + `)" class="text-slate-500 hover:text-rose-400 transition-colors pl-1" title="刪除此日記錄">🗑️</button>
+                            </div>
+                        </div>
+                        <div class="space-y-1.5">
+                            ` + dayHtmlTrades + `
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function updateKPIs() {
+            if(db.history.length === 0) {
+                document.getElementById('kpi-pnl').innerText = "+$0.00";
+                document.getElementById('kpi-pnl').className = "text-2xl font-bold text-emerald-400";
+                document.getElementById('kpi-rule-rate').innerText = "—";
+                document.getElementById('kpi-impulse-count').innerText = "0";
+                document.getElementById('kpi-avg-score').innerText = "—";
+                return;
+            }
+
+            let totalPnl = 0;
+            let totalTradesCount = 0;
+            let obeyedTradesCount = 0;
+            let totalImpulseCount = 0;
+            let totalScore = 0;
+
+            db.history.forEach(day => {
+                totalImpulseCount += day.hasImpulse ? 1 : 0;
+                totalScore += day.score;
+                day.trades.forEach(t => {
+                    totalPnl += t.pnl;
+                    totalTradesCount++;
+                    if(t.obeyedRule) obeyedTradesCount++;
+                });
+            });
+
+            document.getElementById('kpi-pnl').innerText = (totalPnl >= 0 ? "+" : "") + `$` + totalPnl.toFixed(2);
+            document.getElementById('kpi-pnl').className = `text-2xl font-bold ` + (totalPnl >= 0 ? 'text-emerald-400' : 'text-rose-400');
+
+            const ruleRate = totalTradesCount > 0 ? Math.round((obeyedTradesCount / totalTradesCount) * 100) : 0;
+            document.getElementById('kpi-rule-rate').innerText = ruleRate + `%`;
+            document.getElementById('kpi-impulse-count').innerText = totalImpulseCount;
+
+            const avgScore = (totalScore / db.history.length).toFixed(1);
+            document.getElementById('kpi-avg-score').innerText = avgScore + ` / 10`;
+        }
+
+        function checkMeltdown() {
+            let todayPnl = 0;
+            tmpTrades.forEach(t => todayPnl += t.pnl);
+
+            const chosenDate = document.getElementById('trade-date').value;
+            db.history.forEach(day => {
+                if(day.date === chosenDate) {
+                    day.trades.forEach(t => todayPnl += t.pnl);
+                }
+            });
+
+            const maxLossLimit = db.capital * -0.05; 
+            const overlay = document.getElementById('calc-lock-overlay');
+            
+            if(todayPnl <= maxLossLimit) {
+                overlay.classList.remove('hidden'); 
+            } else {
+                overlay.classList.add('hidden'); 
+            }
+        }
+
+        // 📈 實時計算連續賺蝕並渲染 SVG 本金圖表
+        function renderEquityChart() {
+            const chartWrapper = document.getElementById('chart-wrapper');
+            if (db.history.length === 0) {
+                chartWrapper.innerHTML = `<span class="text-xs text-slate-500">📊 儲存首筆今日記錄後將即時自動繪製權益走勢曲線</span>`;
+                return;
+            }
+
+            // 1. 提取所有歷史，按時間「由舊到新」排列計算連續權益
+            let sortedHistory = [...db.history].sort((a, b) => new Date(a.date) - new Date(b.date));
+            
+            let capitalPoints = [db.capital]; // 初始點
+            let labels = ["初始"];
+            let currentCap = db.capital;
+
+            sortedHistory.forEach(day => {
+                let dayNet = 0;
+                day.trades.forEach(t => dayNet += t.pnl);
+                currentCap += dayNet;
+                capitalPoints.push(currentCap);
+                labels.push(day.date);
+            });
+
+            // 2. 計算 SVG 座標
+            const width = chartWrapper.clientWidth || 400;
+            const height = 180;
+            const padding = 25;
+
+            const maxCap = Math.max(...capitalPoints);
+            const minCap = Math.min(...capitalPoints);
+            const capRange = maxCap - minCap === 0 ? 100 : maxCap - minCap;
+
+            // 判定賺蝕主顏色 (比對最後一個點與初始本金)
+            const isProfitable = capitalPoints[capitalPoints.length - 1] >= db.capital;
+            const strokeColor = isProfitable ? "#34d399" : "#f43f5e"; // Emerald-400 或 Rose-500
+            const fillColor = isProfitable ? "rgba(52, 211, 153, 0.15)" : "rgba(244, 63, 94, 0.15)";
+
+            let pointsPath = "";
+            let svgPoints = [];
+
+            for (let i = 0; i < capitalPoints.length; i++) {
+                const x = padding + (i * (width - padding * 2) / (capitalPoints.length - 1 || 1));
+                const y = height - padding - ((capitalPoints[i] - minCap) * (height - padding * 2) / capRange);
+                svgPoints.push({x, y, val: capitalPoints[i]});
+                pointsPath += (i === 0 ? "M" : "L") + ` ${x} ${y}`;
+            }
+
+            // 閉合漸變陰影路徑
+            let areaPath = pointsPath;
+            if (svgPoints.length > 0) {
+                areaPath += ` L ${svgPoints[svgPoints.length - 1].x} ${height - padding} L ${svgPoints[0].x} ${height - padding} Z`;
+            }
+
+            // 3. 生成 SVG HTML
+            let svgHtml = `
+                <svg width="${width}" height="${height}" class="w-full h-full overflow-visible">
+                    <defs>
+                        <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="${strokeColor}" stop-opacity="0.25"/>
+                            <stop offset="100%" stop-color="${strokeColor}" stop-opacity="0.00"/>
+                        </linearGradient>
+                    </defs>
+                    <!-- 背景網格基準線 -->
+                    <line x1="${padding}" y1="${padding}" x2="${width - padding}" y2="${padding}" stroke="#334155" stroke-width="1" stroke-dasharray="4"/>
+                    <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="#334155" stroke-width="1"/>
+                    
+                    <!-- 漸變陰影 -->
+                    <path d="${areaPath}" fill="url(#chartGradient)"/>
+                    
+                    <!-- 走勢曲線 -->
+                    <path d="${pointsPath}" fill="none" stroke="${strokeColor}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            `;
+
+            // 繪製節點圓點與數據標籤
+            svgPoints.forEach((pt, idx) => {
+                // 只顯示起點、終點或節點較少時全部顯示
+                if (svgPoints.length <= 6 || idx === 0 || idx === svgPoints.length - 1) {
+                    svgHtml += `
+                        <circle cx="${pt.x}" cy="${pt.y}" r="4" fill="#0f172a" stroke="${strokeColor}" stroke-width="2"/>
+                        <text x="${pt.x}" y="${pt.y - 8}" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="monospace" class="font-bold">
+                            $${pt.val.toFixed(0)}
+                        </text>
+                    `;
+                }
+            });
+
+            svgHtml += `</svg>`;
+            chartWrapper.innerHTML = svgHtml;
+        }
+
+        // 🧮 升級版：依據資產類型精準計算 Lots 與名義總規模 Sizing
+        function calculateLot() {
+            const entry = Number(document.getElementById('calc-entry').value);
+            const sl = Number(document.getElementById('calc-sl').value);
+            const assetType = document.getElementById('calc-asset-type').value;
+            const resultDiv = document.getElementById('calc-result');
+
+            if(!entry || !sl || entry === sl) {
+                resultDiv.innerHTML = "<div>請輸入價格計算</div>";
+                return;
+            }
+
+            const riskAmount = db.capital * 0.02; // 固定每單 2% 風險金額
+            const priceDiff = Math.abs(entry - sl);
+            
+            let lots = 0;
+            let totalSizingUSD = 0;
+
+            if (assetType === 'forex') {
+                // 外匯標準公式：標準手數 = 風險金額 / (價差 * 100,000) [假設為直盤或已折算標的]
+                lots = riskAmount / (priceDiff * 100000);
+                totalSizingUSD = lots * 100000 * entry;
+            } else if (assetType === 'gold') {
+                // 黃金標準公式：標準合約 1手 = 100 盎司。$1價差 = $100 盈虧
+                lots = riskAmount / (priceDiff * 100);
+                totalSizingUSD = lots * 100 * entry;
+            } else if (assetType === 'oil') {
+                // 原油標準公式：標準合約 1手 = 1,000 桶。$1價差 = $1,000 盈虧
+                lots = riskAmount / (priceDiff * 1000);
+                totalSizingUSD = lots * 1000 * entry;
+            } else {
+                // 加密貨幣 / 股票指數：名義絕對點對點規模
+                lots = riskAmount / priceDiff; // 此處 Lots 即代表實體代幣/指數合約張數單位
+                totalSizingUSD = lots * entry;
+            }
+
+            if (lots === Infinity || isNaN(lots) || lots <= 0) {
+                resultDiv.innerHTML = "<div>輸入價格不合理</div>";
+            } else {
+                let lotDisplay = assetType === 'crypto_index' ? lots.toLocaleString(undefined, {maximumFractionDigits: 3}) + " 單位/張" : lots.toFixed(2) + " Lots (標準手)";
+                resultDiv.innerHTML = `
+                    <div class="text-cyan-400">建議下單：<span class="text-base text-white font-bold">` + lotDisplay + `</span></div>
+                    <div class="text-slate-400 text-[11px]">開倉名義總規模：<span class="text-cyan-300 font-bold">$` + totalSizingUSD.toLocaleString(undefined, {maximumFractionDigits: 0}) + ` USD</span></div>
+                `;
+            }
+        }
+
+        // 備份資料匯出
+        function exportData() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", "trading_diary_backup_" + Date.now() + ".json");
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        function clearAllData() {
+            if(confirm("🚨 警告：確定要清除本地瀏覽器儲存的所有歷史記錄同本金設定嗎？此操作不可逆！")) {
+                db = { capital: 1000, history: [] };
+                tmpTrades = [];
+                renderAll();
+            }
+        }
+    </script>
+</body>
+</html>
